@@ -1,10 +1,13 @@
 version: 2
 updates:
-  # Image tags in values.yaml (claude-docker, garage)
+  # Image tags in values.yaml. claude-docker is bumped by .github/workflows/bump-claude-docker.yml instead
+  # (also bumps appVersion, the chart version and the README), so it's ignored here.
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: schubergphilis/claude-docker
   - package-ecosystem: github-actions
     directory: /
     schedule:
