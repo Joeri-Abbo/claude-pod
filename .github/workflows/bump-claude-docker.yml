@@ -1,0 +1,59 @@
+name: bump claude-docker
+
+# Opens a PR when schubergphilis/claude-docker publishes a newer stable release (prereleases are skipped)
+# whose image is on GHCR: bumps image.tag, appVersion, the chart's patch version and the README default.
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+      - name: bump if a newer release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest=$(gh api repos/schubergphilis/claude-docker/releases/latest --jq .tag_name)
+          current=$(awk '/^image:/{f=1} f && /^  tag:/{print $2; exit}' values.yaml)
+          echo "current=$current latest=$latest"
+          if [ "$latest" = "$current" ] || [ "$(printf '%s\n' "$current" "$latest" | sort -V | tail -1)" != "$latest" ]; then
+            echo "up to date"; exit 0
+          fi
+          branch=bump/claude-docker-$latest
+          if git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null; then
+            echo "$branch already exists"; exit 0
+          fi
+          token=$(curl -sf "https://ghcr.io/token?scope=repository:schubergphilis/claude-docker:pull" | jq -r .token)
+          if ! curl -sf -o /dev/null -H "Authorization: Bearer $token" \
+              -H "Accept: application/vnd.oci.image.index.v1+json" \
+              "https://ghcr.io/v2/schubergphilis/claude-docker/manifests/$latest"; then
+            echo "$latest is released but its image isn't on GHCR yet; retrying next run"; exit 0
+          fi
+
+          sed -i "/^image:/,/^[^ ]/ s/^  tag: $current\$/  tag: $latest/" values.yaml
+          sed -i "s/^appVersion: .*/appVersion: $latest # claude-docker image tag/" Chart.yaml
+          chart=$(awk '/^version:/{print $2}' Chart.yaml)
+          next=$(awk -F. -v OFS=. '{$3++; print}' <<<"$chart")
+          sed -i "s/^version: .*/version: $next/" Chart.yaml
+          sed -i "s|\`ghcr.io/schubergphilis/claude-docker\` / \`$current\`|\`ghcr.io/schubergphilis/claude-docker\` / \`$latest\`|" README.md
+          git diff --stat
+          # PRs opened with GITHUB_TOKEN don't trigger the lint workflow, so lint here.
+          helm lint --strict .
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "Bump claude-docker to $latest (chart $next)"
+          git push origin "$branch"
+          gh pr create --base master --head "$branch" \
+            --title "Bump claude-docker to $latest" \
+            --body "schubergphilis/claude-docker [$latest](https://github.com/schubergphilis/claude-docker/releases/tag/$latest) is out and on GHCR. Bumps \`image.tag\` and \`appVersion\` from $current, and the chart from $chart to $next."
