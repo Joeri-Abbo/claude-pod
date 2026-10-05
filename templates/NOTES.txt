@@ -1,0 +1,18 @@
+claude-pod is starting in namespace {{ .Release.Namespace }}.
+
+Attach with the bin/claude-pod helper from this chart's repo:
+
+  export CLAUDE_POD_NAMESPACE={{ .Release.Namespace }} CLAUDE_POD_RELEASE={{ .Release.Name }}
+  claude-pod             # attach to Claude; Ctrl-b d detaches
+  claude-pod up ./repo   # upload to /workspaces/repo
+
+or plain kubectl:
+
+  kubectl -n {{ .Release.Namespace }} exec -it deploy/{{ .Release.Name }} -- runuser -u claude -- tmux new -A -s main claude
+{{- if .Values.networkPolicy.enabled }}
+
+Egress is deny-all except DNS{{ if .Values.s3.enabled }}, the S3{{ end }} and what's under `egress` in your values.
+{{- if not (or .Values.egress.services .Values.egress.fqdns .Values.egress.extra) }}
+Nothing is allowed yet, so Claude can't reach a model: add your LLM endpoint under `egress`.
+{{- end }}
+{{- end }}

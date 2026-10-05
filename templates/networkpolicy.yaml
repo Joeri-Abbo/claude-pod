@@ -1,0 +1,58 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  enableDefaultDeny:
+    ingress: true # no ingress rules: nothing gets in (kubectl exec doesn't go over the pod network)
+    egress: true
+  egress:
+    # DNS via the proxy, which is also what lets toFQDNs learn IPs.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+    {{- if .Values.s3.enabled }}
+    - toEndpoints:
+        - matchLabels:
+            app: {{ .Release.Name }}-s3
+      toPorts:
+        - ports:
+            - port: "3900"
+              protocol: TCP
+    {{- end }}
+    {{- range .Values.egress.services }}
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .namespace }}
+            {{- toYaml .labels | nindent 12 }}
+      toPorts:
+        - ports:
+            - port: {{ .port | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- range .Values.egress.fqdns }}
+    - toFQDNs:
+        - {{- toYaml (omit . "ports") | nindent 10 }}
+      toPorts:
+        - ports:
+            {{- range (.ports | default (list 443)) }}
+            - port: {{ . | quote }}
+              protocol: TCP
+            {{- end }}
+    {{- end }}
+    {{- with .Values.egress.extra }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

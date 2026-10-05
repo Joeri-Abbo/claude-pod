@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO volume
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+      annotations:
+        checksum/s3sync: {{ .Files.Get "files/s3sync" | sha256sum }}
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: claude
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args: [sleep, infinity] # the entrypoint sets up the user; attach with kubectl exec (see README)
+          env:
+            - name: HOST_UID
+              value: {{ .Values.uid | quote }}
+            - name: HOST_GID
+              value: {{ .Values.uid | quote }}
+            - name: TERM
+              value: xterm-256color
+            {{- if .Values.s3.enabled }}
+            - name: S3_BUCKET
+              value: {{ .Values.s3.bucket | quote }}
+            - name: AWS_ENDPOINT_URL
+              value: http://{{ .Release.Name }}-s3:3900
+            - name: AWS_REGION
+              value: garage
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: {secretKeyRef: {name: {{ .Release.Name }}-s3, key: access-key-id}}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: {{ .Release.Name }}-s3, key: secret-access-key}}
+            {{- end }}
+            {{- range $name, $value := .Values.env }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- range $name, $ref := .Values.secretEnv }}
+            - name: {{ $name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $ref.name }}
+                  key: {{ $ref.key }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /root
+              subPath: home
+            - name: data
+              mountPath: /workspaces
+              subPath: workspaces
+            - name: s3sync
+              mountPath: /usr/local/bin/s3sync
+              subPath: s3sync
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+        - name: s3sync
+          configMap:
+            name: {{ .Release.Name }}-s3sync
+            defaultMode: 0755
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-s3sync
+data:
+  s3sync: |
+    {{- .Files.Get "files/s3sync" | nindent 4 }}

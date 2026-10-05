@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# claude-pod: drive a claude-pod deployment from your laptop over kubectl (no ports opened).
+#
+#   claude-pod [connect] [claude flags]   attach to Claude (tmux "main"; starts it with the flags if not running;
+#                                         --yolo = --dangerously-skip-permissions)
+#   claude-pod shell                      bash in the pod, as the claude user
+#   claude-pod exec <cmd> [args...]       run a command in the pod, as the claude user
+#   claude-pod up <local path> [dir]      upload a file/dir into /workspaces/<dir> (default /workspaces)
+#   claude-pod down <path> [local dir]    download /workspaces/<path> into <local dir> (default .)
+#   claude-pod ls [path]                  list /workspaces/<path>
+#   claude-pod rm <path>                  delete /workspaces/<path>
+#   claude-pod clean                      delete everything in /workspaces (asks first)
+#   claude-pod s3sync up|down [path] ...  run s3sync in the pod, paths relative to /workspaces
+#   claude-pod status                     pods in the namespace
+#
+# Uses kubectl's current context; override with KUBECONFIG or CLAUDE_POD_CONTEXT. CLAUDE_POD_NAMESPACE and
+# CLAUDE_POD_RELEASE default to claude-pod. In tmux, Ctrl-b d detaches and Claude keeps running.
+set -euo pipefail
+ns=${CLAUDE_POD_NAMESPACE:-claude-pod}
+release=${CLAUDE_POD_RELEASE:-claude-pod}
+k() { kubectl ${CLAUDE_POD_CONTEXT:+--context "$CLAUDE_POD_CONTEXT"} -n "$ns" "$@"; }
+# Run as the claude user (a bare exec is root, and Claude couldn't edit what root writes). $1: exec flags.
+as_claude() { local flags=$1; shift; k exec ${flags:+"$flags"} "deploy/$release" -- runuser -u claude -- "$@"; }
+usage() { sed -n '2,17s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+need() { [[ -n ${1:-} ]] || usage; }
+
+cmd=${1:-connect}
+[[ $cmd == -* ]] && cmd=connect || shift || true
+case $cmd in
+  connect)
+    args=(); for a in "$@"; do [[ $a == --yolo ]] && a=--dangerously-skip-permissions; args+=("$a"); done # run.sh's alias
+    as_claude -it tmux new -A -s main claude ${args[@]+"${args[@]}"} ;;
+  shell) as_claude -it bash ;;
+  exec) need "${1:-}"; as_claude -i "$@" ;;
+  up)
+    need "${1:-}"; src=${1%/}
+    [[ -e $src ]] || { echo "claude-pod: $src does not exist" >&2; exit 1; }
+    # COPYFILE_DISABLE / --no-xattrs: no macOS ._* files or xattr warnings in the pod
+    # shellcheck disable=SC2016 # $1 expands in the pod
+    COPYFILE_DISABLE=1 tar c --no-xattrs -C "$(dirname "$src")" "$(basename "$src")" |
+      as_claude -i bash -c 'mkdir -p "$1" && tar x -C "$1"' _ "/workspaces/${2:-}"
+    echo "uploaded $src -> /workspaces/${2:+$2/}$(basename "$src")" ;;
+  down)
+    need "${1:-}"; dest=${2:-.}; mkdir -p "$dest"
+    as_claude "" tar c -C /workspaces "${1%/}" | tar x -C "$dest"
+    echo "downloaded /workspaces/${1%/} -> $dest/$(basename "${1%/}")" ;;
+  ls) as_claude "" ls -la "/workspaces/${1:-}" ;;
+  rm)
+    need "${1:-}"
+    [[ $1 != *..* ]] || { echo "claude-pod: no '..' in paths" >&2; exit 1; }
+    as_claude "" rm -rf -- "/workspaces/$1" ;;
+  clean)
+    read -rp "Delete everything in /workspaces? [y/N] " ok
+    [[ $ok == [yY] ]] || exit 0
+    as_claude "" find /workspaces -mindepth 1 -delete ;;
+  s3sync) as_claude "" bash -c 'cd /workspaces && exec s3sync "$@"' _ "$@" ;;
+  status) k get pods -o wide ;;
+  -h|--help|help) usage ;;
+  *) usage ;;
+esac

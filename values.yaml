@@ -1,0 +1,56 @@
+image:
+  repository: ghcr.io/schubergphilis/claude-docker
+  tag: v0.3.1
+
+# The image's entrypoint drops to a non-root "claude" user with this UID/GID (so --yolo works).
+uid: 1000
+
+# One volume for HOME (/root: ~/.claude config + history) and /workspaces.
+storage:
+  storageClass: "" # cluster default
+  size: 20Gi
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 6Gi
+
+# In-namespace S3 (Garage, single node) that `s3sync up|down` in the pod syncs /workspaces with.
+# Disable to bring your own S3: then set S3_BUCKET / AWS_ENDPOINT_URL / AWS_REGION in env, the AWS keys in
+# secretEnv, and allow the endpoint under egress.
+s3:
+  enabled: true
+  image: dxflrs/garage:v2.4.1
+  bucket: workspaces
+  storage:
+    storageClass: "" # cluster default
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 1Gi
+
+# Plain env vars, e.g. ANTHROPIC_BASE_URL / ANTHROPIC_MODEL for an LLM gateway.
+env: {}
+# Env vars from Secrets: NAME: {name: <secret>, key: <key>}, e.g. ANTHROPIC_AUTH_TOKEN, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
+secretEnv: {}
+
+# CiliumNetworkPolicies: ingress deny-all, egress deny-all except DNS, the S3 and `egress` below.
+# Needs Cilium (and its DNS proxy for `fqdns`). Disabling it leaves the pods open in both directions.
+networkPolicy:
+  enabled: true
+
+egress:
+  # In-cluster pods: {namespace, labels, port}
+  services: []
+  # External hosts, Cilium toFQDNs entries plus optional ports (default [443]):
+  #   - matchName: github.com
+  #   - matchPattern: "*.githubusercontent.com"
+  #   - {matchName: example.com, ports: [80, 443]}
+  fqdns: []
+  # Raw extra CiliumNetworkPolicy egress rules (toCIDR, toEntities, ...).
+  extra: []

@@ -1,0 +1,131 @@
+{{- if .Values.s3.enabled }}
+{{- /* Credentials generated once, then kept: lookup returns the live Secret on upgrades. */}}
+{{- $name := printf "%s-s3" .Release.Name }}
+{{- $old := (lookup "v1" "Secret" .Release.Namespace $name).data | default dict }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  annotations:
+    helm.sh/resource-policy: keep
+data:
+  access-key-id: {{ get $old "access-key-id" | default (printf "GK%s" (randAlphaNum 32 | sha256sum | trunc 24) | b64enc) }}
+  secret-access-key: {{ get $old "secret-access-key" | default (randAlphaNum 32 | sha256sum | b64enc) }}
+  rpc-secret: {{ get $old "rpc-secret" | default (randAlphaNum 32 | sha256sum | b64enc) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-data
+  annotations:
+    helm.sh/resource-policy: keep # uninstalling the chart must not delete your synced files
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.s3.storage.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.s3.storage.size }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+data:
+  garage.toml: |
+    metadata_dir = "/var/lib/garage/meta"
+    data_dir = "/var/lib/garage/data"
+    db_engine = "sqlite"
+    replication_factor = 1
+    rpc_bind_addr = "127.0.0.1:3901"
+    rpc_public_addr = "127.0.0.1:3901"
+
+    [s3_api]
+    s3_region = "garage"
+    api_bind_addr = "[::]:3900"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO volume
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+      annotations:
+        checksum/config: {{ .Values.s3.bucket | sha256sum }}
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: garage
+          image: {{ .Values.s3.image }}
+          command: [/garage]
+          args: [server, --single-node, --default-bucket] # layout + bucket + key from the env below, idempotent
+          ports:
+            - containerPort: 3900
+          env:
+            - name: GARAGE_DEFAULT_BUCKET
+              value: {{ .Values.s3.bucket | quote }}
+            - name: GARAGE_DEFAULT_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: {{ $name }}, key: access-key-id}}
+            - name: GARAGE_DEFAULT_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: {{ $name }}, key: secret-access-key}}
+            - name: GARAGE_RPC_SECRET
+              valueFrom: {secretKeyRef: {name: {{ $name }}, key: rpc-secret}}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/garage.toml
+              subPath: garage.toml
+            - name: data
+              mountPath: /var/lib/garage
+          resources:
+            {{- toYaml .Values.s3.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $name }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ $name }}-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+spec:
+  selector:
+    app: {{ $name }}
+  ports:
+    - name: s3
+      port: 3900
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ $name }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ $name }}
+  enableDefaultDeny:
+    ingress: true
+    egress: true # single node, talks to nobody
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: {{ .Release.Name }}
+      toPorts:
+        - ports:
+            - port: "3900"
+              protocol: TCP
+{{- end }}
+{{- end }}

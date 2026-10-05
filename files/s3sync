@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# s3sync up|down [path] [aws s3 sync args...]
+# Syncs a path under /workspaces (default: current dir) with the same path in s3://$S3_BUCKET.
+#   s3sync up                    # push the current dir
+#   s3sync down my-repo --delete # pull /workspaces/my-repo, deleting local files not in the bucket
+#   s3sync up . --dryrun --exclude 'node_modules/*'
+set -euo pipefail
+usage() { sed -n '2,7s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+[[ ${S3_BUCKET:-} ]] || { echo "s3sync: S3_BUCKET is not set" >&2; exit 1; }
+cmd=${1:-}; shift || true
+path=.
+if [[ ${1:-} && $1 != -* ]]; then path=$1; shift; fi
+[[ $cmd == down ]] && mkdir -p "$path"
+local_dir=$(realpath "$path")
+[[ $local_dir == /workspaces || $local_dir == /workspaces/* ]] || { echo "s3sync: $local_dir is not under /workspaces" >&2; exit 1; }
+remote="s3://$S3_BUCKET${local_dir#/workspaces}"
+case $cmd in
+  up) exec aws s3 sync "$local_dir" "$remote" "$@" ;;
+  down) exec aws s3 sync "$remote" "$local_dir" "$@" ;;
+  *) usage ;;
+esac
