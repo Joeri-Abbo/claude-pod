@@ -1,0 +1,49 @@
+name: lint
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+      - name: helm lint
+        run: helm lint --strict .
+      - name: install kubeconform
+        run: curl -sL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz | tar xz -C /usr/local/bin kubeconform
+      - name: render and validate every s3 / networkPolicy combination
+        run: |
+          for args in "" \
+            "--set s3.enabled=false" \
+            "--set networkPolicy.enabled=false" \
+            "--set s3.enabled=false --set networkPolicy.enabled=false" \
+            "--set egress.fqdns[0].matchName=github.com --set egress.fqdns[1].matchPattern=*.npmjs.org --set egress.services[0].namespace=x --set egress.services[0].labels.app=x --set egress.services[0].port=1"; do
+            echo "::group::helm template $args"
+            # shellcheck disable=SC2086 # $args is a list of flags
+            helm template t . $args | kubeconform -strict -summary \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' -
+            echo "::endgroup::"
+          done
+
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        run: shellcheck bin/claude-pod files/s3sync
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DavidAnson/markdownlint-cli2-action@v24
+        with:
+          globs: "**/*.md"

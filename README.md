@@ -73,6 +73,7 @@ The first start pulls a large image, so give it a minute (`claude-pod status`).
 | `env` | `{}` | plain env vars |
 | `secretEnv` | `{}` | env vars from Secrets: `NAME: {name: <secret>, key: <key>}` |
 | `s3.enabled` | `true` | in-namespace Garage + `s3sync` wiring |
+| `s3.image.repository` / `s3.image.tag` | `dxflrs/garage` / `v2.4.1` | |
 | `s3.bucket` | `workspaces` | |
 | `s3.storage.storageClass` / `s3.storage.size` | cluster default / `20Gi` | Garage data |
 | `networkPolicy.enabled` | `true` | Cilium policies; needs Cilium |

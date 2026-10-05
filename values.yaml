@@ -22,7 +22,9 @@ resources:
 # secretEnv, and allow the endpoint under egress.
 s3:
   enabled: true
-  image: dxflrs/garage:v2.4.1
+  image:
+    repository: dxflrs/garage
+    tag: v2.4.1
   bucket: workspaces
   storage:
     storageClass: "" # cluster default
