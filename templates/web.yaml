@@ -21,6 +21,10 @@ spec:
   ports:
     - name: web
       port: 7681
+    {{- if .Values.web.reset.enabled }}
+    - name: reset
+      port: 7682
+    {{- end }}
 {{- if .Values.web.files.enabled }}
 ---
 apiVersion: v1
@@ -58,6 +62,15 @@ spec:
     - host: {{ required "web.ingress.host is required" .host | quote }}
       http:
         paths:
+          {{- if $.Values.web.reset.enabled }}
+          - path: /reset
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}-web
+                port:
+                  name: reset
+          {{- end }}
           {{- if $.Values.web.files.enabled }}
           - path: /files
             pathType: Prefix

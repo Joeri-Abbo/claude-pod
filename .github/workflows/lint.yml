@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
-        run: shellcheck bin/claude-pod files/s3sync
+        run: shellcheck bin/claude-pod files/s3sync files/claude-reset && python3 -m py_compile files/reset-server
 
   docs:
     runs-on: ubuntu-latest

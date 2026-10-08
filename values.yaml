@@ -45,13 +45,17 @@ web:
     repository: tsl0922/ttyd # only the static /usr/bin/ttyd is used, copied into the Claude container
     tag: 1.7.7
   command: [tmux, new, -A, -s, main, claude] # per browser tab; tmux keeps Claude running when the tab closes
+  # /reset page (same login): a button that ends the Claude session and forgets its conversations, optionally also
+  # emptying /workspaces. Same as `claude-pod reset [--workspace]`.
+  reset:
+    enabled: true
   # Read-only file browser for /workspaces under /files (rclone, same login): downloads, folders as zip.
   files:
     enabled: true
     image:
       repository: rclone/rclone
       tag: 1.75.1
-  # Pods that may reach the terminal (7681) and files (8080), as Cilium endpoint labels. Default: k3s's Traefik.
+  # Pods that may reach the terminal (7681), reset page (7682) and files (8080), as Cilium endpoint labels. Default: k3s's Traefik.
   allowFrom:
     - k8s:io.kubernetes.pod.namespace: kube-system
       app.kubernetes.io/name: traefik

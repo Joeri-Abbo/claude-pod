@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# claude-reset [--workspace]
+# Ends the Claude session (every tmux session of this user, so the web terminal and `claude-pod connect` start fresh)
+# and forgets its conversations, prompt history and todos. Settings and login stay. --workspace also empties /workspaces.
+set -euo pipefail
+[[ ${1:-} == "" || $1 == --workspace ]] || { sed -n '2,4s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+tmux kill-server 2>/dev/null || true
+# Claude writes its session files on the way out: wait for it, or they come back after the delete.
+for _ in $(seq 20); do pgrep -u "$(id -u)" -x claude >/dev/null || break; sleep 0.5; done
+pkill -KILL -u "$(id -u)" -x claude 2>/dev/null || true
+cd ~/.claude 2>/dev/null && rm -rf projects sessions session-env tasks teams todos shell-snapshots file-history history.jsonl
+[[ ${1:-} == --workspace ]] && find /workspaces -mindepth 1 -delete
+echo "claude-reset: session ended${1:+, workspace emptied}"

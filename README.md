@@ -103,6 +103,7 @@ claude-pod down my-repo           # download /workspaces/my-repo -> ./my-repo
 claude-pod down my-repo /tmp/out  # download -> /tmp/out/my-repo
 claude-pod ls [path]
 
+claude-pod reset                  # end the session, forget its conversations (--workspace: also empty it)
 claude-pod s3sync up my-repo      # /workspaces/my-repo -> s3://workspaces/my-repo
 claude-pod s3sync down my-repo    # and back
 claude-pod status
@@ -161,8 +162,13 @@ kubectl -n claude-pod get secret claude-pod-web -o jsonpath='{.data.password}' |
 `/files` on the same host is a read-only browser for `/workspaces` (rclone, same login): click to download a
 file, or a folder as zip. It can't upload or delete, and the S3 API stays private.
 
+`/reset` (same login) starts over: one button ends the Claude session and forgets its conversations, prompt history
+and todos; tick the box to also empty `/workspaces`. Settings and the model login stay. Handy between demos, or when
+a session gets stuck. The same from your laptop: `claude-pod reset [--workspace]`.
+
 It's a shell in the pod, so only serve it over HTTPS and keep the password secret. ttyd refuses websockets from
-other origins, and the network policy only lets `web.allowFrom` (default: k3s's Traefik) reach either port.
+other origins, and the network policy only lets `web.allowFrom` (default: k3s's Traefik) reach those ports. `/reset` only
+accepts POSTs from its own site, so another page can't submit it with your cached login.
 
 ## Clean up
 

@@ -11,6 +11,8 @@
 #   claude-pod rm <path>                  delete /workspaces/<path>
 #   claude-pod clean                      delete everything in /workspaces (asks first)
 #   claude-pod s3sync up|down [path] ...  run s3sync in the pod, paths relative to /workspaces
+#   claude-pod reset [--workspace]        end the Claude session and forget its conversations (--workspace: and
+#                                         empty /workspaces); the next connect starts fresh
 #   claude-pod status                     pods in the namespace
 #
 # Uses kubectl's current context; override with KUBECONFIG or CLAUDE_POD_CONTEXT. CLAUDE_POD_NAMESPACE and
@@ -20,8 +22,8 @@ ns=${CLAUDE_POD_NAMESPACE:-claude-pod}
 release=${CLAUDE_POD_RELEASE:-claude-pod}
 k() { kubectl ${CLAUDE_POD_CONTEXT:+--context "$CLAUDE_POD_CONTEXT"} -n "$ns" "$@"; }
 # Run as the claude user (a bare exec is root, and Claude couldn't edit what root writes). $1: exec flags.
-as_claude() { local flags=$1; shift; k exec ${flags:+"$flags"} "deploy/$release" -- runuser -u claude -- "$@"; }
-usage() { sed -n '2,17s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+as_claude() { local flags=$1; shift; k exec ${flags:+"$flags"} "deploy/$release" -c claude -- runuser -u claude -- "$@"; }
+usage() { sed -n '2,19s/^# \{0,1\}//p' "$0" >&2; exit 2; }
 need() { [[ -n ${1:-} ]] || usage; }
 
 cmd=${1:-connect}
@@ -54,6 +56,7 @@ case $cmd in
     [[ $ok == [yY] ]] || exit 0
     as_claude "" find /workspaces -mindepth 1 -delete ;;
   s3sync) as_claude "" bash -c 'cd /workspaces && exec s3sync "$@"' _ "$@" ;;
+  reset) as_claude "" claude-reset "$@" ;;
   status) k get pods -o wide ;;
   -h|--help|help) usage ;;
   *) usage ;;

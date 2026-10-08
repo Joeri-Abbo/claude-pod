@@ -25,6 +25,10 @@ spec:
             - port: "8080"
               protocol: TCP
             {{- end }}
+            {{- if .Values.web.reset.enabled }}
+            - port: "7682"
+              protocol: TCP
+            {{- end }}
   {{- end }}
   egress:
     # DNS via the proxy, which is also what lets toFQDNs learn IPs.
