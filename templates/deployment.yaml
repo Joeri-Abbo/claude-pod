@@ -17,10 +17,28 @@ spec:
         checksum/s3sync: {{ .Files.Get "files/s3sync" | sha256sum }}
     spec:
       enableServiceLinks: false
+      {{- if .Values.web.enabled }}
+      initContainers:
+        - name: ttyd
+          image: "{{ .Values.web.image.repository }}:{{ .Values.web.image.tag }}"
+          command: [cp, /usr/bin/ttyd, /ttyd/ttyd]
+          volumeMounts:
+            - name: ttyd
+              mountPath: /ttyd
+      {{- end }}
       containers:
         - name: claude
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          args: [sleep, infinity] # the entrypoint sets up the user; attach with kubectl exec (see README)
+          # The entrypoint sets up the user and runs args as it; attach with kubectl exec (see README).
+          {{- if .Values.web.enabled }}
+          # Credentials go through bash so the password stays out of the pod spec.
+          args: [bash, -c, 'exec /ttyd/ttyd -p 7681 -W -O -c "claude:$WEB_PASSWORD" "$@"', ttyd, {{ .Values.web.command | toJson | trimPrefix "[" | trimSuffix "]" }}]
+          ports:
+            - name: web
+              containerPort: 7681
+          {{- else }}
+          args: [sleep, infinity]
+          {{- end }}
           env:
             - name: HOST_UID
               value: {{ .Values.uid | quote }}
@@ -28,6 +46,10 @@ spec:
               value: {{ .Values.uid | quote }}
             - name: TERM
               value: xterm-256color
+            {{- if .Values.web.enabled }}
+            - name: WEB_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ .Release.Name }}-web, key: password}}
+            {{- end }}
             {{- if .Values.s3.enabled }}
             - name: S3_BUCKET
               value: {{ .Values.s3.bucket | quote }}
@@ -61,9 +83,51 @@ spec:
             - name: s3sync
               mountPath: /usr/local/bin/s3sync
               subPath: s3sync
+            {{- if .Values.web.enabled }}
+            - name: ttyd
+              mountPath: /ttyd
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+        {{- if and .Values.web.enabled .Values.web.files.enabled }}
+        - name: files # read-only HTTP listing/downloads of /workspaces, behind the web terminal's login
+          image: "{{ .Values.web.files.image.repository }}:{{ .Values.web.files.image.tag }}"
+          args: [serve, http, /workspaces, --addr=:8080, --baseurl=/files, --read-only, --dir-cache-time=5s]
+          ports:
+            - name: files
+              containerPort: 8080
+          env: # rclone reads flags from RCLONE_<FLAG>, so the password stays out of args
+            - name: RCLONE_USER
+              value: claude
+            - name: RCLONE_PASS
+              valueFrom: {secretKeyRef: {name: {{ .Release.Name }}-web, key: password}}
+            - name: RCLONE_CONFIG
+              value: /dev/null
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.uid }} # the claude user, so it can read what Claude writes
+            runAsGroup: {{ .Values.uid }}
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /workspaces
+              subPath: workspaces
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+        {{- end }}
       volumes:
+        {{- if .Values.web.enabled }}
+        - name: ttyd
+          emptyDir: {}
+        {{- end }}
         - name: data
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-data

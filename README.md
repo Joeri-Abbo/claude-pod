@@ -134,6 +134,36 @@ aws s3 ls s3://workspaces/
 
 The network policy only admits the Claude pod; a port-forward works because it enters the pod directly.
 
+## Browser terminal
+
+To use the pod without kubectl, turn on the web terminal ([ttyd](https://github.com/tsl0922/ttyd)). It attaches to
+the same tmux session `main` as `claude-pod connect`, so you can switch between laptop and browser, and Claude keeps
+running when the tab closes:
+
+```yaml
+web:
+  enabled: true
+  ingress:
+    enabled: true
+    className: traefik
+    host: claude.example.com
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+    tlsSecretName: claude-pod-tls
+```
+
+Log in as `claude` with the generated password:
+
+```bash
+kubectl -n claude-pod get secret claude-pod-web -o jsonpath='{.data.password}' | base64 -d
+```
+
+`/files` on the same host is a read-only browser for `/workspaces` (rclone, same login): click to download a
+file, or a folder as zip. It can't upload or delete, and the S3 API stays private.
+
+It's a shell in the pod, so only serve it over HTTPS and keep the password secret. ttyd refuses websockets from
+other origins, and the network policy only lets `web.allowFrom` (default: k3s's Traefik) reach either port.
+
 ## Clean up
 
 ```bash
