@@ -9,6 +9,12 @@ Attach with the bin/claude-pod helper from this chart's repo:
 or plain kubectl:
 
   kubectl -n {{ .Release.Namespace }} exec -it deploy/{{ .Release.Name }} -- runuser -u claude -- tmux new -A -s main claude
+{{- if and .Values.web.enabled .Values.web.ingress.enabled }}
+
+Browser terminal: http{{ if .Values.web.ingress.tlsSecretName }}s{{ end }}://{{ .Values.web.ingress.host }} (user claude){{ if .Values.web.files.enabled }}, downloads of /workspaces under /files{{ end }}, password:
+
+  kubectl -n {{ .Release.Namespace }} get secret {{ .Release.Name }}-web -o jsonpath='{.data.password}' | base64 -d
+{{- end }}
 {{- if .Values.networkPolicy.enabled }}
 
 Egress is deny-all except DNS{{ if .Values.s3.enabled }}, the S3{{ end }} and what's under `egress` in your values.

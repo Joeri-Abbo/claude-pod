@@ -1,0 +1,79 @@
+{{- if .Values.web.enabled }}
+{{- /* Password generated once, then kept: lookup returns the live Secret on upgrades. */}}
+{{- $name := printf "%s-web" .Release.Name }}
+{{- $old := (lookup "v1" "Secret" .Release.Namespace $name).data | default dict }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  annotations:
+    helm.sh/resource-policy: keep
+data:
+  password: {{ get $old "password" | default (randAlphaNum 32 | b64enc) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+spec:
+  selector:
+    app: {{ .Release.Name }}
+  ports:
+    - name: web
+      port: 7681
+{{- if .Values.web.files.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-files
+spec:
+  selector:
+    app: {{ .Release.Name }}
+  ports:
+    - name: files
+      port: 8080
+{{- end }}
+{{- with .Values.web.ingress }}
+{{- if .enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .tlsSecretName }}
+  tls:
+    - hosts: [{{ .host | quote }}]
+      secretName: {{ .tlsSecretName }}
+  {{- end }}
+  rules:
+    - host: {{ required "web.ingress.host is required" .host | quote }}
+      http:
+        paths:
+          {{- if $.Values.web.files.enabled }}
+          - path: /files
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}-files
+                port:
+                  name: files
+          {{- end }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  name: web
+{{- end }}
+{{- end }}
+{{- end }}

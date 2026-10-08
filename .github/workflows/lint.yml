@@ -18,9 +18,13 @@ jobs:
         run: helm lint --strict .
       - name: install kubeconform
         run: curl -sL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz | tar xz -C /usr/local/bin kubeconform
-      - name: render and validate every s3 / networkPolicy combination
+      - name: render and validate every s3 / networkPolicy / web combination
         run: |
+          web="--set web.enabled=true --set web.ingress.enabled=true --set web.ingress.host=claude.example.com --set web.ingress.tlsSecretName=claude-tls"
           for args in "" \
+            "$web" \
+            "$web --set web.files.enabled=false --set s3.enabled=false" \
+            "$web --set networkPolicy.enabled=false" \
             "--set s3.enabled=false" \
             "--set networkPolicy.enabled=false" \
             "--set s3.enabled=false --set networkPolicy.enabled=false" \

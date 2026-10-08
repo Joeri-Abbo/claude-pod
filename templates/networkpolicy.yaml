@@ -8,8 +8,24 @@ spec:
     matchLabels:
       app: {{ .Release.Name }}
   enableDefaultDeny:
-    ingress: true # no ingress rules: nothing gets in (kubectl exec doesn't go over the pod network)
+    ingress: true # nothing gets in except the web terminal below (kubectl exec doesn't go over the pod network)
     egress: true
+  {{- if .Values.web.enabled }}
+  ingress:
+    - fromEndpoints:
+        {{- range .Values.web.allowFrom }}
+        - matchLabels:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+      toPorts:
+        - ports:
+            - port: "7681"
+              protocol: TCP
+            {{- if .Values.web.files.enabled }}
+            - port: "8080"
+              protocol: TCP
+            {{- end }}
+  {{- end }}
   egress:
     # DNS via the proxy, which is also what lets toFQDNs learn IPs.
     - toEndpoints:
