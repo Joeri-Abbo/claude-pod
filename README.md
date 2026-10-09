@@ -10,6 +10,7 @@ Claude Code as a long-running Kubernetes pod: a Helm chart plus a small laptop-s
 - **S3**: a single-node [Garage](https://garagehq.deuxfleurs.fr) in the same namespace, with `s3sync` in the pod
   to keep copies of workspace directories in a bucket.
 - **Network**: Cilium policies deny all ingress, and all egress except DNS, the S3, and what you allow.
+  DNS only resolves `*.cluster.local` and the `egress.fqdns` names, so lookups can't be used to exfiltrate data.
 - **Storage**: HOME (`/root`: Claude config, history) and `/workspaces` share one PVC; Garage has its own.
 
 ## Requirements
