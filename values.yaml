@@ -60,7 +60,8 @@ web:
     className: ""
     host: ""
     annotations: {} # e.g. cert-manager.io/cluster-issuer
-    tlsSecretName: "" # set for HTTPS (with cert-manager: any name, it creates the Secret)
+    tlsSecretName: "" # required for HTTPS (with cert-manager: any name, it creates the Secret)
+    allowInsecure: false # allow no tlsSecretName, only if TLS is terminated in front of the ingress
 
 # Plain env vars, e.g. ANTHROPIC_BASE_URL / ANTHROPIC_MODEL for an LLM gateway.
 env: {}

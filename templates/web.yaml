@@ -36,6 +36,9 @@ spec:
 {{- end }}
 {{- with .Values.web.ingress }}
 {{- if .enabled }}
+{{- if not (or .tlsSecretName .allowInsecure) }}
+{{- fail "web.ingress.tlsSecretName is required (basic auth over plain HTTP leaks the shell password); set web.ingress.allowInsecure=true if TLS is terminated in front" }}
+{{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
