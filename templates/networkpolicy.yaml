@@ -27,7 +27,10 @@ spec:
             {{- end }}
   {{- end }}
   egress:
-    # DNS via the proxy, which is also what lets toFQDNs learn IPs.
+    # DNS via the proxy, which is also what lets toFQDNs learn IPs. Only cluster names
+    # and the allowed fqdns resolve: any other name would be forwarded upstream, a
+    # channel out. A `*` doesn't cross dots, so cover cluster.local (and the resolver's
+    # search-domain expansions of short names) up to 8 labels deep.
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
@@ -38,7 +41,12 @@ spec:
               protocol: ANY
           rules:
             dns:
-              - matchPattern: "*"
+              {{- range $i := until 8 }}
+              - matchPattern: "{{ repeat (add1 $i | int) "*." }}cluster.local"
+              {{- end }}
+              {{- range .Values.egress.fqdns }}
+              - {{- toYaml (omit . "ports") | nindent 16 }}
+              {{- end }}
     {{- if .Values.s3.enabled }}
     - toEndpoints:
         - matchLabels:
