@@ -66,7 +66,7 @@ The first start pulls a large image, so give it a minute (`claude-pod status`).
 
 | Key | Default | |
 | --- | --- | --- |
-| `image.repository` / `image.tag` | `ghcr.io/schubergphilis/claude-docker` / `v0.3.1` | |
+| `image.repository` / `image.tag` | `ghcr.io/schubergphilis/claude-docker` / `v0.3.4` | |
 | `uid` | `1000` | UID/GID the entrypoint drops to |
 | `storage.storageClass` / `storage.size` | cluster default / `20Gi` | HOME + `/workspaces` |
 | `resources` | 250m / 512Mi request, 6Gi limit | Claude pod |
