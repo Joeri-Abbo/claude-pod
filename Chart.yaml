@@ -2,8 +2,8 @@ apiVersion: v2
 name: claude-pod
 description: Claude Code as a long-running Kubernetes pod (schubergphilis/claude-docker image) with its own S3 and locked-down egress
 type: application
-version: 0.2.0
-appVersion: v0.3.1 # claude-docker image tag
+version: 0.2.1
+appVersion: v0.3.5 # claude-docker image tag
 keywords: [claude, claude-code, ai, dev-environment, garage, s3, cilium]
 sources:
   - https://github.com/schubergphilis/claude-docker
