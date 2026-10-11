@@ -15,7 +15,7 @@ local_dir=$(realpath "$path")
 [[ $local_dir == /workspaces || $local_dir == /workspaces/* ]] || { echo "s3sync: $local_dir is not under /workspaces" >&2; exit 1; }
 remote="s3://$S3_BUCKET${local_dir#/workspaces}"
 case $cmd in
-  up) exec aws s3 sync "$local_dir" "$remote" "$@" ;;
+  up) exec aws s3 sync "$local_dir" "$remote" "$@" --no-follow-symlinks ;;
   down) exec aws s3 sync "$remote" "$local_dir" "$@" ;;
   *) usage ;;
 esac
