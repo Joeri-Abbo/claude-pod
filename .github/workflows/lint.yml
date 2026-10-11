@@ -55,6 +55,35 @@ jobs:
           PY
       - name: install kubeconform
         run: curl -sL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz | tar xz -C /usr/local/bin kubeconform
+      - name: verify terminal and workspace origin isolation
+        run: |
+          python3 - <<'PY'
+          import re
+          import subprocess
+
+          def render(template, *extra):
+              return subprocess.check_output([
+                  "helm", "template", "t", ".", "--show-only", template,
+                  "--set", "web.enabled=true", "--set", "web.ingress.enabled=true",
+                  "--set", "web.ingress.host=claude.example.com",
+                  "--set", "web.ingress.tlsSecretName=claude-tls", *extra,
+              ], text=True)
+
+          web = render("templates/web.yaml")
+          terminal, files = web.split("  rules:\n")[1].split('    - host: "files.claude.example.com"\n')
+          assert 'host: "claude.example.com"' in terminal
+          assert "name: t-web" in terminal and "name: t-files" not in terminal
+          assert "name: t-files" in files and "name: t-web" not in files
+          assert '- "files.claude.example.com"' in web.split("  rules:\n")[0]
+          passwords = re.findall(r"^  (?:password|files-password): (\S+)$", web, re.M)
+          assert len(passwords) == 2 and passwords[0] != passwords[1]
+          deployment = render("templates/deployment.yaml", "--set", "web.ingress.enabled=false")
+          terminal, files = deployment.split("        - name: files #", 1)
+          assert "key: password" in terminal and "key: files-password" not in terminal
+          assert "key: files-password" in files and "key: password" not in files
+          disabled = render("templates/web.yaml", "--set", "web.files.enabled=false")
+          assert "files.claude.example.com" not in disabled and "files-password:" not in disabled
+          PY
       - name: render and validate every s3 / networkPolicy / web combination
         run: |
           web="--set web.enabled=true --set web.ingress.enabled=true --set web.ingress.host=claude.example.com --set web.ingress.tlsSecretName=claude-tls"

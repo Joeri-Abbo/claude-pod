@@ -90,7 +90,7 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
         {{- if and .Values.web.enabled .Values.web.files.enabled }}
-        - name: files # read-only HTTP listing/downloads of /workspaces, behind the web terminal's login
+        - name: files # read-only HTTP listing/downloads of /workspaces, with a separate origin and login
           image: "{{ .Values.web.files.image.repository }}:{{ .Values.web.files.image.tag }}"
           args: [serve, http, /workspaces, --addr=:8080, --baseurl=/files, --read-only, --dir-cache-time=5s]
           ports:
@@ -100,7 +100,7 @@ spec:
             - name: RCLONE_USER
               value: claude
             - name: RCLONE_PASS
-              valueFrom: {secretKeyRef: {name: {{ .Release.Name }}-web, key: password}}
+              valueFrom: {secretKeyRef: {name: {{ .Release.Name }}-web, key: files-password}}
             - name: RCLONE_CONFIG
               value: /dev/null
           securityContext:

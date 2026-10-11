@@ -45,7 +45,7 @@ web:
     repository: tsl0922/ttyd # only the static /usr/bin/ttyd is used, copied into the Claude container
     tag: 1.7.7
   command: [tmux, new, -A, -s, main, claude] # per browser tab; tmux keeps Claude running when the tab closes
-  # Read-only file browser for /workspaces under /files (rclone, same login): downloads, folders as zip.
+  # Read-only file browser for /workspaces at files.<ingress.host>/files, with its own password.
   files:
     enabled: true
     image:

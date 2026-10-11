@@ -10,6 +10,9 @@ metadata:
     helm.sh/resource-policy: keep
 data:
   password: {{ get $old "password" | default (randAlphaNum 32 | b64enc) }}
+  {{- if .Values.web.files.enabled }}
+  files-password: {{ get $old "files-password" | default (randAlphaNum 32 | b64enc) }}
+  {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -60,22 +63,17 @@ spec:
   {{- end }}
   {{- if .tlsSecretName }}
   tls:
-    - hosts: [{{ .host | quote }}]
+    - hosts:
+        - {{ .host | quote }}
+        {{- if $.Values.web.files.enabled }}
+        - {{ printf "files.%s" .host | quote }}
+        {{- end }}
       secretName: {{ .tlsSecretName }}
   {{- end }}
   rules:
     - host: {{ required "web.ingress.host is required" .host | quote }}
       http:
         paths:
-          {{- if $.Values.web.files.enabled }}
-          - path: /files
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ $.Release.Name }}-files
-                port:
-                  name: files
-          {{- end }}
           - path: /
             pathType: Prefix
             backend:
@@ -83,6 +81,18 @@ spec:
                 name: {{ $name }}
                 port:
                   name: web
+    {{- if $.Values.web.files.enabled }}
+    - host: {{ printf "files.%s" .host | quote }}
+      http:
+        paths:
+          - path: /files
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}-files
+                port:
+                  name: files
+    {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
