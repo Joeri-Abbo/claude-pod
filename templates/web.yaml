@@ -39,12 +39,18 @@ spec:
 {{- if not (or .tlsSecretName .allowInsecure) }}
 {{- fail "web.ingress.tlsSecretName is required (basic auth over plain HTTP leaks the shell password); set web.ingress.allowInsecure=true if TLS is terminated in front" }}
 {{- end }}
+{{- $annotations := .annotations | default dict | deepCopy }}
+{{- /* Traefik needs router TLS and a secure-only entrypoint; other controllers ignore these annotations. */}}
+{{- if not .allowInsecure }}
+{{- $_ := set $annotations "traefik.ingress.kubernetes.io/router.tls" "true" }}
+{{- $_ := set $annotations "traefik.ingress.kubernetes.io/router.entrypoints" "websecure" }}
+{{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ $name }}
-  {{- with .annotations }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

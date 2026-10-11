@@ -162,8 +162,13 @@ kubectl -n claude-pod get secret claude-pod-web -o jsonpath='{.data.password}' |
 `/files` on the same host is a read-only browser for `/workspaces` (rclone, same login): click to download a
 file, or a folder as zip. It can't upload or delete, and the S3 API stays private.
 
-It's a shell in the pod, so only serve it over HTTPS and keep the password secret. ttyd refuses websockets from
-other origins, and the network policy only lets `web.allowFrom` (default: k3s's Traefik) reach either port.
+It's a shell in the pod, so only serve it over HTTPS and keep the password secret. Unless `web.ingress.allowInsecure`
+is set, the chart forces Traefik's router TLS on the `websecure` entrypoint, overriding conflicting annotations.
+Traefik must have that entrypoint configured; HTTP must not reach `/` or `/files` (a redirect or rejection is fine).
+Other ingress controllers ignore these Traefik annotations: configure their HTTPS-only routing separately; a TLS
+Secret alone is not a portable HTTPS enforcement mechanism. Only use `allowInsecure: true` when an upstream proxy
+terminates TLS and prevents direct plaintext access. ttyd refuses websockets from other origins, and the network
+policy only lets `web.allowFrom` (default: k3s's Traefik) reach either port.
 
 ## Clean up
 

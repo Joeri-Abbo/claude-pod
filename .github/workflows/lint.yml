@@ -16,6 +16,43 @@ jobs:
       - uses: azure/setup-helm@v5
       - name: helm lint
         run: helm lint --strict .
+      - name: check web ingress TLS enforcement
+        run: |
+          python3 - <<'PY'
+          import json
+          import subprocess
+
+          tls = "traefik.ingress.kubernetes.io/router.tls"
+          entrypoints = "traefik.ingress.kubernetes.io/router.entrypoints"
+
+          def render(ingress):
+              return subprocess.run(
+                  ["helm", "template", "t", ".", "--show-only", "templates/web.yaml", "-f", "-"],
+                  input=json.dumps({"web": {"enabled": True, "ingress": ingress}}),
+                  text=True, capture_output=True,
+              )
+
+          for class_name in ("", "traefik"):
+              for overrides in ({}, {tls: "false", entrypoints: "web,websecure"}):
+                  ingress = dict(enabled=True, className=class_name, host="claude.example.com",
+                                 tlsSecretName="claude-tls", annotations={
+                                     "cert-manager.io/cluster-issuer": "letsencrypt", **overrides})
+                  result = render(ingress)
+                  assert result.returncode == 0, result.stderr
+                  assert f'{tls}: "true"' in result.stdout, result.stdout
+                  assert f'{entrypoints}: websecure' in result.stdout, result.stdout
+                  assert "cert-manager.io/cluster-issuer: letsencrypt" in result.stdout
+                  assert "path: /files" in result.stdout and "path: /\n" in result.stdout
+
+          ingress = dict(enabled=True, className="traefik", host="claude.example.com")
+          result = render(ingress)
+          assert result.returncode != 0 and "tlsSecretName is required" in result.stderr
+          result = render({**ingress, "allowInsecure": True,
+                           "annotations": {tls: "false", entrypoints: "web"}})
+          assert result.returncode == 0, result.stderr
+          assert f'{tls}: "false"' in result.stdout and f'{entrypoints}: web\n' in result.stdout
+          assert "secretName:" not in result.stdout
+          PY
       - name: install kubeconform
         run: curl -sL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz | tar xz -C /usr/local/bin kubeconform
       - name: render and validate every s3 / networkPolicy / web combination
