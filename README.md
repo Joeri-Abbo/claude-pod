@@ -159,8 +159,16 @@ Log in as `claude` with the generated password:
 kubectl -n claude-pod get secret claude-pod-web -o jsonpath='{.data.password}' | base64 -d
 ```
 
-`/files` on the same host is a read-only browser for `/workspaces` (rclone, same login): click to download a
-file, or a folder as zip. It can't upload or delete, and the S3 API stays private.
+`https://files.<web.ingress.host>/files` is a read-only browser for `/workspaces` (rclone): download a file,
+or a folder as zip. Workspace HTML is untrusted, so files use a separate origin and password from the terminal.
+Point both hostnames at the ingress and ensure the TLS certificate covers both (cert-manager uses the ingress's
+TLS hosts). Log in as `claude` with the files password:
+
+```bash
+kubectl -n claude-pod get secret claude-pod-web -o jsonpath='{.data.files-password}' | base64 -d
+```
+
+It can't upload or delete, and the S3 API stays private.
 
 It's a shell in the pod, so only serve it over HTTPS and keep the password secret. ttyd refuses websockets from
 other origins, and the network policy only lets `web.allowFrom` (default: k3s's Traefik) reach either port.

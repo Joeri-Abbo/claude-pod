@@ -11,9 +11,17 @@ or plain kubectl:
   kubectl -n {{ .Release.Namespace }} exec -it deploy/{{ .Release.Name }} -- runuser -u claude -- tmux new -A -s main claude
 {{- if and .Values.web.enabled .Values.web.ingress.enabled }}
 
-Browser terminal: http{{ if .Values.web.ingress.tlsSecretName }}s{{ end }}://{{ .Values.web.ingress.host }} (user claude){{ if .Values.web.files.enabled }}, downloads of /workspaces under /files{{ end }}, password:
+Browser terminal: http{{ if .Values.web.ingress.tlsSecretName }}s{{ end }}://{{ .Values.web.ingress.host }} (user claude), password:
 
   kubectl -n {{ .Release.Namespace }} get secret {{ .Release.Name }}-web -o jsonpath='{.data.password}' | base64 -d
+{{- if .Values.web.files.enabled }}
+
+Workspace downloads: http{{ if .Values.web.ingress.tlsSecretName }}s{{ end }}://files.{{ .Values.web.ingress.host }}/files (user claude), separate password:
+
+  kubectl -n {{ .Release.Namespace }} get secret {{ .Release.Name }}-web -o jsonpath='{.data.files-password}' | base64 -d
+
+Point both hostnames at the ingress and ensure the TLS certificate covers both.
+{{- end }}
 {{- end }}
 {{- if .Values.networkPolicy.enabled }}
 
