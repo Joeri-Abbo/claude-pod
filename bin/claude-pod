@@ -37,12 +37,12 @@ case $cmd in
     [[ -e $src ]] || { echo "claude-pod: $src does not exist" >&2; exit 1; }
     # COPYFILE_DISABLE / --no-xattrs: no macOS ._* files or xattr warnings in the pod
     # shellcheck disable=SC2016 # $1 expands in the pod
-    COPYFILE_DISABLE=1 tar c --no-xattrs -C "$(dirname "$src")" "$(basename "$src")" |
+    COPYFILE_DISABLE=1 tar c --no-xattrs -C "$(dirname "$src")" -- "$(basename "$src")" |
       as_claude -i bash -c 'mkdir -p "$1" && tar x -C "$1"' _ "/workspaces/${2:-}"
     echo "uploaded $src -> /workspaces/${2:+$2/}$(basename "$src")" ;;
   down)
     need "${1:-}"; dest=${2:-.}; mkdir -p "$dest"
-    as_claude "" tar c -C /workspaces "${1%/}" | tar x -C "$dest"
+    as_claude "" tar c -C /workspaces -- "${1%/}" | tar x -C "$dest"
     echo "downloaded /workspaces/${1%/} -> $dest/$(basename "${1%/}")" ;;
   ls) as_claude "" ls -la "/workspaces/${1:-}" ;;
   rm)
