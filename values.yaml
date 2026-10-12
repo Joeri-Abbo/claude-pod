@@ -50,7 +50,7 @@ web:
     enabled: true
     image:
       repository: rclone/rclone
-      tag: 1.75.1
+      tag: 1.75.2
   # Pods that may reach the terminal (7681) and files (8080), as Cilium endpoint labels. Default: k3s's Traefik.
   allowFrom:
     - k8s:io.kubernetes.pod.namespace: kube-system
