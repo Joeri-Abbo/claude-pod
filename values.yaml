@@ -12,7 +12,7 @@ storage:
 
 resources:
   requests:
-    cpu: 250m
+    cpu: 50m
     memory: 512Mi
   limits:
     memory: 6Gi
