@@ -32,7 +32,10 @@ spec:
           # The entrypoint sets up the user and runs args as it; attach with kubectl exec (see README).
           {{- if .Values.web.enabled }}
           # Credentials go through bash so the password stays out of the pod spec. reset-server (/reset) runs next to ttyd.
-          args: [bash, -c, '{{ if .Values.web.reset.enabled }}reset-server & {{ end }}exec /ttyd/ttyd -p 7681 -W -O -c "claude:$WEB_PASSWORD" "$@"', ttyd, {{ .Values.web.command | toJson | trimPrefix "[" | trimSuffix "]" }}]
+          {{- if and (not .Values.web.basicAuth) .Values.web.reset.enabled }}
+          {{- fail "web.basicAuth: false needs web.reset.enabled: false (the /reset page has basic auth built in)" }}
+          {{- end }}
+          args: [bash, -c, '{{ if .Values.web.reset.enabled }}reset-server & {{ end }}exec /ttyd/ttyd -p 7681 -W -O {{ if .Values.web.basicAuth }}-c "claude:$WEB_PASSWORD" {{ end }}"$@"', ttyd, {{ .Values.web.command | toJson | trimPrefix "[" | trimSuffix "]" }}]
           ports:
             - name: web
               containerPort: 7681
@@ -103,10 +106,12 @@ spec:
             - name: files
               containerPort: 8080
           env: # rclone reads flags from RCLONE_<FLAG>, so the password stays out of args
+            {{- if .Values.web.basicAuth }}
             - name: RCLONE_USER
               value: claude
             - name: RCLONE_PASS
               valueFrom: {secretKeyRef: {name: {{ .Release.Name }}-web, key: password}}
+            {{- end }}
             - name: RCLONE_CONFIG
               value: /dev/null
           securityContext:

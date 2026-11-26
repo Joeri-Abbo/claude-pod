@@ -45,6 +45,10 @@ web:
     repository: tsl0922/ttyd # only the static /usr/bin/ttyd is used, copied into the Claude container
     tag: 1.7.7
   command: [tmux, new, -A, -s, main, claude] # per browser tab; tmux keeps Claude running when the tab closes
+  # false: no login of its own on the terminal and /files, for when something in front already authenticates every
+  # request (e.g. an SSO forwardAuth Middleware on the Ingress). Requires reset.enabled: false (/reset has basic auth
+  # built in). The <release>-web Secret is still created but unused.
+  basicAuth: true
   # /reset page (same login): a button that ends the Claude session and forgets its conversations, optionally also
   # emptying /workspaces. Same as `claude-pod reset [--workspace]`.
   reset:
