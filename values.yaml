@@ -24,7 +24,7 @@ s3:
   enabled: true
   image:
     repository: dxflrs/garage
-    tag: v2.4.1
+    tag: v2.5.0
   bucket: workspaces
   storage:
     storageClass: "" # cluster default
